@@ -1,73 +1,137 @@
 ---
 name: "clawd-watercolor-mv"
-description: "Make a Clawd watercolor (p5.brush) music video from an MP3 plus a lyric timeline: storyboard, shot code, checks, Mac render, MP4. Use for any new song MV in this style."
+description: "Use when making or fixing a hand-painted watercolor (p5.brush) animated music video — Clawd or Q-style human cast — from a song MP3 plus an LRC or lyric-timeline JSON: storyboard, sample clip, shot code, full-film render to MP4, or problems in such a project (flickering subtitles, slow frames, vanishing strokes, broken transitions, audio sync). 水彩 MV、歌词分镜、样片、全片渲染。"
 ---
 
-# Clawd 水彩 MV 制作流程（《等待》工程沉淀）
+# Clawd 水彩 MV
 
-输入：**原曲 MP3** + **歌词时间线**（机器校验版 JSON 最好；LRC / CSV / SRT 也可）。
-输出：全片 1080p MP4 + 720p 分享版（带原曲）、检查拼图、运行说明，并拷到用户桌面。
+输入：**原曲 MP3** 和**歌词时间线**。时间线最好是机器校验版 JSON；只有 LRC 也行。
+输出：全片 1080p MP4 和 720p 分享版（都带原曲）、检查拼图、总览图、README，最后拷到老大桌面。
 
-模板工程（用户 Mac）：`/Users/mac/Documents/Codex/2026-10-29/https-github-com-johnheibel-pdoomvideo-https/work/DengDai`（《等待》，已有全部框架、工具、角色、道具、转场、笔触）。源头是 PDoomVideo（同目录 `work/PDoomVideo`）。新歌一律**复制 DengDai 到独立新目录**再改，不要改旧工程。
+可复用的东西都在这个 skill 目录里（下文的 `SK`）：
+- `template/`：一个能直接跑的工程，含引擎、渲染器、打过补丁的 p5.brush、通用场景库 kit.js、可选的人物骨架 person.js，以及全部工具。
+- `reference/api.md`：函数速查。
+- `reference/pitfalls.md`：踩坑清单，写代码前先扫一遍。
+- `reference/past-films.md`：八部旧片里有哪些场景和手法可以借。
+- `scripts/new_project.sh`：建新工程。
 
-## 0. 先确认的事（一次问清）
-- MP3、歌词时间线、已确认分镜的路径。若还没有分镜：先按第 2 节拟分镜给用户确认，**确认前不写动画代码**。
-- 新工程目录名、是否先做 10–15 秒样片（默认是）。
-- 请求文件夹访问时一次性申请：工程父目录 + MP3 所在目录 + 桌面。
+**不要再去复制某部旧片的工程当模板**。旧片只用来借具体的场景函数。
 
-## 1. 音频与歌词数据
-- `ffprobe` 读时长；以歌词 JSON 里的 `audio_duration_seconds` 为 `CONFIG.duration`（MP3 尾部填充会多出几十毫秒）。
-- 节拍：用起音强度自相关估 BPM，再以 0.01 s 步长扫相位（粗扫会出半拍歧义）。分段估（0–1/3、1/3–2/3…）以发现渐快渐慢。**不要沿用模板的 BPM**；结果标“未人工核对”。镜头切点以分镜时间为准。
-- 歌词入点用原 LRC，出点用机器对齐估计；**保留 review_priority / needs_audio_review 标记**，不要称为人工精确对齐。如果只给了 LRC，就把出点设为下一句入点，并标全部待复听。
-- 改好 `assets/<歌名>-歌词时间线…json` 和 `STORYBOARD.md` 后跑 `python3 tools/build_data.py`（生成 `src/lyrics.js`、`src/shotlist.js`，并检查镜头无缝铺满 0–duration），再跑 `python3 tools/build_font.py`（中文字幕字体子集，Noto Serif CJK SC，OFL）。JSON 字段名不同就改 build_data.py 的读取部分。
+## 0. 先确认（一次问清）
+- MP3、LRC 或 JSON 的路径；分镜是否已经确认。**分镜确认之前不写镜头代码**。
+- 新工程目录：放在 `…/work/<英文名>`。是否先做 10–15 s 样片：默认先做。
+- 老大这次的特别要求（比如笔触、场景、衔接、字幕），逐条记下，README 里逐条交代怎么做到的。
 
-## 2. 分镜设计（用户已有就严格照做）
-格式沿用《等待》桌面 `等待-分镜.md`：构想 → 规则 → 角色与道具（带 clawd.js 参数）→ 统一手法 → 按章的表格 `| 时间 (秒) | 歌词(id+意象标签) | 画面（括号里写运镜） | 表演（eyes/emote/move/lid/take/sq…） | 出 |`。
-方法（PDoomVideo STORYBOARD 的规则）：
-- 每章只用一个场景；副歌每次回到同一个固定舞台并逐次升级；重复主歌沿用第一次的镜头语法但更暗、表演反转。
-- 每个镜头必须发生一件事；每个镜头都有运镜；情绪用 `mood()` 换眼 + take + emote，不硬切表情。
-- 少字：只留片名一次、署名、极少音效字；画内不复述歌词。
-- 转场由动作驱动（坠落、吸入、旋转、涟漪、门）；每行“出”写清。色彩弧线贯穿全片；首尾同一构图。
-- 一个逐次升级的道具（类似 P(doom) 仪表 / 杯塔）把故事串起来。
-- 镜头时间：有词镜头从该句入点开始并吸收其后的空隙；无词段切点对到拍点；全片首尾相接无空档。
-- 不改 Clawd 基本剪影；角色区分靠配件（draw/armL/armR 钩子）。
-（用户的《歌词分镜设计》对话若另有补充规则，以用户确认的分镜为准。）
+## 1. 建工程
+```bash
+bash SK/scripts/new_project.sh <work>/<Name> <work>/DongTian   # 第二个参数：从已有工程克隆 node_modules（APFS，秒完不占空间）
+```
+然后把 MP3 / LRC / JSON 复制进 `assets/`，在 `src/config.js` 里填 title、artist、slug、audio、duration、sample。
 
-## 3. 工程结构（模板已有，只替换内容）
-- `src/config.js`：音频路径、总时长、fps 24、节拍、字体、字幕样式、样片区间、各平台 Chrome 路径。**所有全局数字只在这里。**
-- `src/clawd.js` 原样保留；`src/core.js`（绘制/镜头/关键帧）、`src/timeline.js`（章节调度、整句字幕、署名、复听角标、未绘镜头占位、TRANSITIONS）、`src/texture.js`（p5 笔触）、`studio.html`、`render.mjs` 通用。
-- 每部片重写：`src/cast.js`（角色）、`src/props.js`（道具）、`src/world.js`（共用场景 + 故事状态）、`src/ch/cNN_*.js`（每章一个文件，IIFE，`chapter(name, start, end, [[t0, fn|null], …])`，未绘镜头写 null）。新章节要加到 studio.html 的 script 列表。
+## 2. 音频与歌词
+- 时长：取 JSON 的 `audio_duration_seconds`。没有 JSON 就用 ffprobe 读。
+- 节拍：`node tools/beat.mjs` 输出 BPM、0.01 s 相位和分段相位，结果填进 `CONFIG.beat`。
+  - 分段相位不一致，说明有渐快或渐慢，改用 `beat.map`。
+  - 半速和倍速两个候选都要看。
+  - 一律标“未人工核对”。
+- 只有 LRC 时：
+  - 先 `python3 tools/lrc_to_json.py --lrc=assets/x.lrc`：署名行会自动分到 credits，出点按长度估计，全部标待复听。
+  - 需要机器估计出点时，再用 `tools/align_lyrics.py`：要用 mlx-whisper 的 Python 环境，首次会下载约 480 MB 模型，先问老大。这个脚本还没实测过。
+- 写好 `STORYBOARD.md` 后跑 `python3 tools/build_data.py`，生成 lyrics.js 和 shotlist.js，并检查镜头首尾相接、无空档。
 
-## 4. 写镜头的硬规则
-- 镜头函数 `fn(t, lt, dur)` 画整帧，是 t 的纯函数：不存状态、不用 Math.random（用 `hash(i)`）。需要“过去”的效果就从时间反推（如气泡在 te=t0+k·Δ 生成，位置取 path(te)）。
-- **跨镜头/跨章节的连续性只放在 world.js**：布局常量（CAFE）与按时间的状态函数（杯塔数、墙钟时间、灯光、道具在哪、她站在哪、卷帘门…）。章节只读不存。道具从一处到另一处必须有镜头内的动作解释，并在 README 的“需确认”里列出自己补的设定。
-- 手与道具接触用 `clawdArmTip(x,y,u,pose,side)` 算，或反解姿势让手落在道具上；持物用 armL/armR 钩子（holdCup/holdKey/holdWatch …）。
-- 遮挡顺序：身后的角色 → 桌面 → 桌上物 → 前景角色。角色要“离开座位”时切换到桌面之后绘制。
-- 座位附近的小角色/道具不要挡住主角的杯子等关键道具（《等待》里方糖曾挡杯子）。
-- 字幕带在 y 960 以下，关键表演保持在其上。
-- 转场：镜头内用动作衔接（vortex/坠落/flash 浸色）；剩余硬切在 timeline.js `TRANSITIONS` 里加：`whip` 甩镜、`clock` 指针扫、`smoke` 白烟、`paper` 纸片、`bloom` 光晕、`paint` p5 笔刷擦除（自定颜色）。`flash` 前若有 emote 字符要先 `flushLetters()`。
-- 笔触（texture.js）：`brushStrokes / swirlStrokes / stipple / bodyStrokes`，笔刷 `paint / bristle / stipple`。颜色取底色的深浅邻近色；**不要在浅底上用纯白笔触**（p5.brush 光谱混色会变灰）；sw 一般 0.8–2。半透明的烟/幽灵类角色加一道灰边线才看得见。
-- 丰富场景：窗帘、盆栽、架子、墙画、窗外路人、漂浮粒子、树和飞鸟等放在共用场景函数里，一次加全片生效。
+## 3. 分镜（老大已有就严格照做）
+- 格式见 `template/STORYBOARD.md`：构想 → 规则 → 角色与道具（写明 clawd/person 参数）→ 每章一张表。
+- 表头：`| 时间 (秒) | 歌词 | 画面（括号写运镜） | 表演 | 出 |`。build_data 认 `## N · 章名` 的标题和 `| a–b |` 开头的行。
+- 每章只用一个场景。
+- 副歌每次回到同一个固定舞台，逐次升级，只换调色。
+- 重复的主歌沿用第一次的镜头语法，但更暗，表演反转。
+- 每个镜头必须发生一件事，并且有运镜。
+- 情绪用 `mood()` 换眼睛，再加 take 和 emote，不要硬切表情。
+- 少用字：片名只出现一次，加一块署名；画内不复述歌词，不写招牌字。
+- 转场由动作驱动，每行的“出”写清楚怎么转。
+- 用一个逐次升级的道具或一根线索串起全片。
+- 色彩弧线贯穿全片；首尾用同一构图。
+- 有词的镜头从该句入点开始，吸收其后的空隙；无词段的切点对到拍点。
+- 不改 Clawd 的基本剪影，角色区分只靠颜色和配件。
 
-## 5. 环境与渲染（踩过的坑）
-- 云端容器无 npm/CDN/GitHub 网络：依赖靠用户 Mac `npm install`（p5 2.3.3、p5.brush 2.2.3、puppeteer-core），云端只拷 `p5.min.js` 与 `p5.brush.js` 两个文件。
-- 云端没有 GPU：SwiftShader 极慢，Mesa llvmpipe（`--use-gl=angle --use-angle=gl-egl`）快 4 倍但仍 30–120 s/帧，只用来做少量静帧。**正式渲染都在 Mac**（Chrome + Metal，约 0.4–2 s/帧，3 worker）。
-- Mac 上的 device_bash 是 Linux VM（需约 17 GB 空闲磁盘才启动），能改文件、跑 ffmpeg，但用不了 Mac 的 Chrome。让用户在终端运行一次 `node tools/render_watch.mjs`（渲染队列，只接受 render.mjs 参数），然后把 `{"args":[...]}` 写进 `out/jobs/NN_name.job.json`，等 `.done`。不要用脚本自动化终端绕过电脑操控的点击限制。
-- 云端→Mac 同步代码：在云端打 zip → `device_commit_files` 到 `out/src_update.zip` → device_bash 里用 python zipfile 解压。
-- studio.html 的 `<audio>` 只在非 `?render` 时加载（否则页面等不到 networkidle）；渲染用 `waitUntil: 'load'`。
-- 长渲染会崩标签页：render.mjs 已每 300 帧换页、出错重开/重启 Chrome 并重试；`--frames` 可断点续渲。旧帧只能 `mv -n` 改名（连接文件夹默认不能删）。
-- device_bash 里的后台进程会被杀：ffmpeg 转码在前台单次 ≤170 s 内完成。
+## 4. 写代码的硬规则
+- **该写在哪**：
+  - 每部片要重写的：`cast.js`（角色）、`props.js`（道具）、`world.js`（布局常量 + 按时间的故事状态）、`ch/cNN_*.js`（每章一个 IIFE，`chapter(name, start, end, [[t0, fn|null]…])`）。
+  - 大场景单独成文件，放在 world.js 后面。新文件要加进 studio.html 的列表，dryrun 也读这个列表。
+  - 通用的东西先到 `kit.js` 里找。
+- **纯函数**：镜头函数 `fn(t, lt, dur)` 画整帧，是 t 的纯函数。
+  - 不存状态，不用 `Math.random`，用 `hash(i)`。
+  - 需要“过去”的效果，就从时间反推。
+- **连续性**：跨镜头、跨章节的连续性只放在 world.js。
+  - 道具换位置要有镜头内的动作解释。
+  - 自己补的设定写进 README 的“待确认”。
+- **手**：用 `clawdArmTip` / `armAngleTo` 落到道具上。面朝观众时，左手是 `aR`。
+- **遮挡顺序**：身后的角色 → 桌面 → 桌上物 → 前景角色。
+- **字幕区**：在 y 960 以下，关键表演放在它上面。
+- **字幕底带和标题卡**：
+  - 字幕底带由模板在合成层画，**不要用 `paint()` 画字幕底带或任何 UI 底板**，p5.brush 填色会随抖动每秒闪 12 次。
+  - 大块深色的固定元素用 `steady(key, fn)` 包起来。
+- **光与雪**：
+  - 光晕用 `softGlow` / `glowDot`。
+  - 积雪用 `snowLine`。
+  - 浅底上不用纯白笔触。
+  - 半透明角色加一道灰色轮廓线。
+- **嵌套场景**：`nest()` 不裁剪，先画嵌套的场景，再在四周画墙盖住溢出部分。
+- **性能**：
+  - 大背景用 `bg()`。
+  - 物件先 `vis()` 再画。
+  - 帧慢时用 `tools/profile.mjs` 找原因，别猜。
+- **转场**：
+  - 先在镜头内用动作衔接（旋涡、坠落、浸色、推进窗户）。
+  - 剩下的硬切在 `TRANSITIONS` 里加：whip / bloom / smoke / paint / paper / clock / splash。
+  - 转场前若有 emote 字符，先 `flushLetters()`。
+- **命名**：函数名不能和 p5 全局重名，例如 `cone`、`panorama`。
+
+## 5. 渲染（这台 Mac：Chrome + Metal）
+- 在 Claude Code 桌面版里直接用后台 Bash 跑渲染。用 Cowork VM 时，改用 `tools/render_watch.mjs` 队列，见 pitfalls。
+- 开渲前先 `df -h /`：每帧约 530 KB，4 分钟的片约 3.2 GB。
+- 样片：`node render.mjs --sample`。
+- 全片：
+  - `node render.mjs --frames=0:<duration> --workers=3 > out/render_full.log`，用 `run_in_background`。
+  - 有效速度约 0.3–1.2 s/帧。
+  - 可以断点续渲；每 300 帧自动换页。
+- 合成：`node render.mjs --encode --out=out/<slug>.mp4`。
 
 ## 6. 验证（每轮都跑）
-1. `node tools/dryrun.mjs --step=0.25`：不开浏览器跑全片，0 报错，并看每帧图形数。
-2. 每章一张 0.5 s 间隔的检查拼图（`--sheet=a:b:0.5 --cols=6 --w=400`），用 Read 逐张看：构图、遮挡、道具连续、字幕区、转场前中后三帧。
-3. `node render.mjs --verify=<几个时间>`：乱序重渲逐像素一致。
-4. `python3 tools/sync_check.py --range=a:b --marks=...`：波形/起音/估计拍/切点/字幕/关键动作对照图。
-5. 成片：`ffprobe` 帧数与时长；用音轨互相关在开头/中段/结尾核对偏移为 0；全片每 4 s 一帧总览图。
+1. `node tools/dryrun.mjs --step=0.25`：0 报错，并看最重的帧。
+2. 每章一张 0.5 s 间隔的拼图：`--sheet=a:b:0.5 --cols=6 --w=400`。用 Read 逐张看构图、遮挡、道具连续、字幕区、转场前中后三帧。
+3. `node render.mjs --verify=<几个时间>`：乱序重渲要逐像素一致。
+4. 成片：`node tools/finish.mjs`。它会：
+   - 核对帧数和时长；
+   - 在 10%、50%、90% 三处做音轨互相关，偏移必须是 0 ms；
+   - 出每 4 s 一格的总览图和放大的两半，用 Read 看；
+   - 转 720p；
+   - 拷到 `~/Desktop/MV制作/<歌手 - 歌名>/`。会先找已有的同名文件夹，永不覆盖。
+5. 闪烁一类的问题，要连续渲 4 个相隔 1/12 s 的时刻，裁出同一区域比较。
 
-## 7. 交付顺序
-1. 样片：选一段含角色表演 + 道具互动 + 转场的 10–15 s，`node render.mjs --sample` → MP4 + 检查图 + README，等用户确认。
-2. 全片：逐章写 → dryrun → 每章拼图 → 修 → `--frames=0:<duration> --workers=3` → `--encode --out=out/<name>.mp4` → 总览图。
-3. 质感轮（可并入全片）：笔触、场景细节、TRANSITIONS。
-4. 在 VM 里 ffmpeg 转 720p（`-preset veryfast -crf 25 -vf scale=1280:-2`）作为聊天内发送版；1080p 与 720p 都 `cp -n` 到桌面。
-5. README 写清：章节表、运行命令、与模板的差异、节拍/歌词未人工核对的地方、自己补的连续性设定（待确认）。如实说明哪些只看了拼图、没有完整带声播放。
+## 7. 交付
+1. **样片**：MP4、检查图和 README，等老大确认。
+2. **全片**：逐章写 → dryrun → 每章拼图 → 修 → 渲染 → encode → finish.mjs。
+3. 用 SendUserFile 发 720p 和总览图。
+4. README 按 `template/README.md` 写，必须包括：
+   - 章节表；
+   - 怎么满足老大这次的要求；
+   - 运行命令；
+   - 与模板的差异；
+   - 未核对的节拍、歌词和自己补的设定；
+   - 成片信息。
+5. 如实说明哪些只看了拼图、没有完整带声播放。
+6. 不删老大的文件。帧文件删不删让老大决定；旧帧只用 `mv -n` 改名。
+
+## 常见错误（全表见 reference/pitfalls.md）
+
+| 症状 | 做法 |
+|---|---|
+| 字幕底框或大块深色在闪 | 合成层底带（模板已做）/ `steady()` / `boil: 0` |
+| 线条消失、变点 | 用模板的 `vendor/p5.brush.js`，不要换回 npm 版 |
+| 一帧 2 秒以上 | `profile.mjs` 定位；只画亮窗；`FILL_MIN`；光晕用 wash；`vis()` |
+| 积雪或粗笔推镜后变成灰胶囊 | `snowLine` |
+| 嵌套窗景溢出窗框 | 先画嵌套场景，再分 4 块画墙 |
+| 页面卡死不加载 | 函数和 p5 全局重名 |
+| `Cannot access … before initialization` / `X is not defined` | 定义顺序；timeline.js 比 cast.js 先加载 |
+| 拷桌面失败 | 老大挪过文件夹，finish.mjs 会去找 |

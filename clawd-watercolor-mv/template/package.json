@@ -1,0 +1,17 @@
+{
+  "name": "clawd-mv",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clawd 水彩 MV 工程（clawd-watercolor-mv 模板，源自 PDoomVideo 框架）",
+  "scripts": {
+    "data": "python3 tools/build_data.py",
+    "dry": "node tools/dryrun.mjs --step=0.25",
+    "sample": "node render.mjs --sample --workers=3",
+    "verify": "node render.mjs --verify=8,72,120"
+  },
+  "dependencies": {
+    "p5": "2.3.3",
+    "p5.brush": "2.2.3",
+    "puppeteer-core": "^25.11.0"
+  }
+}

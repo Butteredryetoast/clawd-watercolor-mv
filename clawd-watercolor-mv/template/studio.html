@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Clawd MV studio</title>
+<style>
+  html, body { margin: 0; background: #1b1820; color: #eee; font: 13px -apple-system, "PingFang SC", system-ui, sans-serif; }
+  main { padding: 12px; display: grid; gap: 8px; max-width: 1280px; }
+  #out { width: 100%; aspect-ratio: 16 / 9; height: auto; background: #F3EBDC; }
+  .p5Canvas { display: none !important; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #scrub { flex: 1; min-width: 300px; }
+  #tt { font-variant-numeric: tabular-nums; min-width: 230px; }
+  button, input[type=number], select { background: #2c2733; color: #eee; border: 1px solid #4a4256; border-radius: 4px; padding: 3px 8px; font: inherit; }
+  input[type=number] { width: 70px; }
+  #info { color: #c9bfd6; line-height: 1.5; min-height: 3em; }
+  #info b { color: #fff; } .hi { color: #ff8a9c; }
+  #ticks { position: relative; height: 14px; }
+  #ticks i { position: absolute; top: 0; width: 1px; height: 14px; background: #776d86; }
+  #ticks i.ly { background: #E8AA38; height: 6px; top: 8px; width: auto; opacity: .7; }
+  #ticks i.ly.high { background: #ff6a80; }
+</style>
+<script src="node_modules/p5/lib/p5.min.js"></script>
+<script src="vendor/p5.brush.js"></script>
+</head>
+<body>
+<main>
+  <canvas id="out" width="1920" height="1080"></canvas>
+  <div id="ticks"></div>
+  <div class="bar">
+    <button id="play" title="空格">▶ 播放</button>
+    <input id="scrub" type="range" min="0" max="1" step="0.0417" value="0">
+    <span id="tt">loading…</span>
+  </div>
+  <div class="bar">
+    <label>模式 <select id="mode">
+      <option value="cache">预渲染区间后同步播放（准确的音画同步）</option>
+      <option value="live">实时（边播边画，会掉帧）</option>
+    </select></label>
+    <label>区间 <input id="ra" type="number" step="0.01"> – <input id="rb" type="number" step="0.01"> s</label>
+    <label>预览帧率 <input id="pfps" type="number" value="12" min="4" max="24"></label>
+    <button id="cache">预渲染</button>
+    <button id="sample">样片区间</button>
+    <label><input id="rev" type="checkbox" checked> 显示复听标记</label>
+    <span id="cs"></span>
+  </div>
+  <div id="info"></div>
+  <audio id="aud" preload="auto"></audio>
+</main>
+<script src="src/config.js"></script>
+<script>if (!location.search.includes('render')) document.getElementById('aud').src = CONFIG.audio; document.title = `《${CONFIG.title}》studio`;</script>
+<script src="src/core.js"></script>
+<script src="src/clawd.js"></script>
+<script src="src/lyrics.js"></script>
+<script src="src/shotlist.js"></script>
+<script src="src/timeline.js"></script>
+<script src="src/texture.js"></script>
+<script src="src/kit.js"></script>
+<!-- <script src="src/person.js"></script>  人物主角（不用 Clawd）时打开：Q 版人体骨架 person() -->
+<script src="src/cast.js"></script>
+<script src="src/props.js"></script>
+<script src="src/world.js"></script>
+<!-- 场景文件（sets.js / street.js …）放在 world.js 后面；章节文件按时间顺序放在最后。dryrun.mjs 也读这个列表。 -->
+<script src="src/ch/c00_demo.js"></script>
+<script>
+// ---------- studio UI: scrub, audio-synced playback, shot/lyric info ----------
+// Live mode paints the frame at the audio clock (slow frames are skipped, so motion stutters but stays in sync).
+// Cache mode pre-renders [a, b] at the preview fps into memory, then plays the song from a and shows the cached
+// frame for the current audio time: this is the mode to judge timing and lip/hit sync.
+window.devUI = () => {
+  const $ = id => document.getElementById(id), s = $('scrub'), lab = $('tt'), aud = $('aud'), out = $('out'), ctx = out.getContext('2d');
+  s.max = CONFIG.duration; $('ra').value = CONFIG.sample.start; $('rb').value = CONFIG.sample.end;
+  // timeline ticks: shot cuts + lyric spans (red = flagged for re-listening)
+  const tk = $('ticks'), pct = t => (t / CONFIG.duration * 100) + '%';
+  for (const sh of SHOTLIST) { const i = document.createElement('i'); i.style.left = pct(sh.a); i.title = `${sh.a}s ${sh.chName}`; tk.appendChild(i); }
+  for (const l of LY) { const i = document.createElement('i'); i.className = 'ly' + (l[4] === 'high' ? ' high' : ''); i.style.left = pct(l[0]); i.style.width = pct(l[1] - l[0]); i.title = `L${l[3]} ${l[2]}`; tk.appendChild(i); }
+  let busy = false, want = null, cache = null, playing = false;
+  const info = t => {
+    const sh = shotAt(t), L = lyricAt(t);
+    $('info').innerHTML = `<b>${sh.ch} · ${sh.chName}</b>　${sh.a.toFixed(2)}–${sh.b.toFixed(2)} s　${sh.lyric}<br>${sh.shot}` +
+      (L ? `<br>字幕 L${L[3]}「${L[2]}」 ${L[0].toFixed(2)}–${L[1].toFixed(2)} s <span class="${L[4] === 'high' ? 'hi' : ''}">${L[5] ? '待复听' + (L[4] === 'high' ? '（高优先级）' : '') : ''}</span>` : '');
+  };
+  const paintAt = async t => { const t0 = performance.now(); await window.renderAt(t); lab.textContent = `${t.toFixed(2)} s · ${Math.round(performance.now() - t0)} ms/frame`; info(t); };
+  const go = async () => { if (busy) return; busy = true; while (want != null) { const t = want; want = null; await paintAt(t); } busy = false; };
+  s.addEventListener('input', () => { stop(); want = +s.value; go(); });
+
+  const stop = () => { playing = false; aud.pause(); $('play').textContent = '▶ 播放'; };
+  async function liveLoop() {
+    while (playing) { const t = aud.currentTime; s.value = t; await paintAt(t); if (aud.ended || t >= +$('rb').value) stop(); }
+  }
+  function cacheLoop() {
+    if (!playing) return;
+    const t = aud.currentTime, i = Math.round((t - cache.a) * cache.fps);
+    if (i >= 0 && i < cache.frames.length) { ctx.drawImage(cache.frames[i], 0, 0, out.width, out.height); lab.textContent = `${t.toFixed(2)} s · 缓存帧 ${i + 1}/${cache.frames.length}`; info(t); }
+    s.value = t;
+    if (t >= cache.b || aud.ended) { stop(); return; }
+    requestAnimationFrame(cacheLoop);
+  }
+  async function buildCache() {
+    stop();
+    const a = +$('ra').value, b = +$('rb').value, fps = +$('pfps').value, n = Math.max(1, Math.round((b - a) * fps)), frames = [];
+    for (let i = 0; i < n; i++) {
+      await window.renderAt(a + i / fps);
+      frames.push(await createImageBitmap(out, { resizeWidth: 960, resizeHeight: 540 }));
+      $('cs').textContent = `预渲染 ${i + 1}/${n}`;
+    }
+    cache = { a, b, fps, frames }; $('cs').textContent = `已缓存 ${a}–${b} s @${fps} fps`;
+  }
+  async function play() {
+    if (playing) { stop(); return; }
+    const a = +$('ra').value;
+    if ($('mode').value === 'cache') {
+      const c = cache; if (!c || c.a !== a || c.b !== +$('rb').value || c.fps !== +$('pfps').value) await buildCache();
+      aud.currentTime = cache.a;
+    } else aud.currentTime = (+s.value >= a && +s.value < +$('rb').value) ? +s.value : a;
+    playing = true; $('play').textContent = '❚❚ 暂停';
+    await aud.play();
+    $('mode').value === 'cache' ? requestAnimationFrame(cacheLoop) : liveLoop();
+  }
+  $('play').onclick = play; $('cache').onclick = buildCache;
+  $('sample').onclick = () => { $('ra').value = CONFIG.sample.start; $('rb').value = CONFIG.sample.end; s.value = CONFIG.sample.start; want = CONFIG.sample.start; go(); };
+  $('rev').onchange = () => { window.REVIEW_OFF = !$('rev').checked; want = +s.value; go(); };
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+    if (e.code === 'Space') { e.preventDefault(); play(); }
+    if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') { e.preventDefault(); stop(); s.value = +s.value + (e.code === 'ArrowRight' ? 1 : -1) / CONFIG.fps * (e.shiftKey ? 12 : 1); want = +s.value; go(); }
+  });
+  want = +(new URLSearchParams(location.search).get('t') || CONFIG.sample.start); s.value = want; go();
+};
+</script>
+</body>
+</html>
