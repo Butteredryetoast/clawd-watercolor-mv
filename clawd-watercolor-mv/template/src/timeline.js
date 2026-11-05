@@ -152,17 +152,32 @@ function subtitle(t) {
   const S = CONFIG.subtitle, L = lyricAt(t);
   creditsAt(t);
   if (!L) return;
-  const [a, b, txt, id, pri] = L;
+  const [a, b, , id, pri] = L;
   const k = easeOut((t - a) / S.fadeIn) * (1 - ease((t - (b - S.fadeOut)) / S.fadeOut));
   if (k < .02) return;
-  SUBTITLE = { txt, k, id, pri };
+  SUBTITLE = { lines: subtitleLines(L), k, id, pri };
+}
+// Lines top to bottom. CONFIG.subtitle.lines = [{ key, size, font, weight }]: key 'orig' = the lyric text (LY[2]),
+// 'zh' = its translation (LY[6], text_zh in the JSON); font names a CONFIG.fonts entry. No lines = one 'orig' line.
+// S.y is the centre of the first line; the others stack below it, S.gap apart. A line with no text is skipped.
+function subtitleLines(L) {
+  const S = CONFIG.subtitle, out = [];
+  let y = S.y;
+  for (const d of S.lines || [{ key: 'orig' }]) {
+    const txt = d.key === 'zh' ? L[6] : L[2]; if (!txt) continue;
+    const size = d.size || S.size;
+    if (out.length) y += out[out.length - 1].size / 2 + (S.gap ?? 10) + size / 2;
+    out.push({ txt, size, y, font: `${d.weight ?? S.weight ?? ''} ${size}px ${CONFIG.fonts[d.font || 'zh'] || CONFIG.fonts.zh}` });
+  }
+  return out;
 }
 function drawSubtitleBand(c) {
-  const S = CONFIG.subtitle; if (!SUBTITLE || !(S.band > 0)) return;
-  const { txt, k, id } = SUBTITLE;
+  const S = CONFIG.subtitle; if (!SUBTITLE || !(S.band > 0) || !SUBTITLE.lines.length) return;
+  const { lines, k, id } = SUBTITLE;
   c.save();
-  c.font = `${S.weight || ''} ${S.size}px ${CONFIG.fonts.zh}`;
-  const hw = c.measureText(txt).width / 2 + S.size * 1.1, hh = S.size * .82, n = 36;
+  const top = lines[0].y - lines[0].size / 2, bot = lines[lines.length - 1].y + lines[lines.length - 1].size / 2, cy = (top + bot) / 2;
+  const hw = Math.max(...lines.map(l => { c.font = l.font; return c.measureText(l.txt).width; })) / 2 + S.size * 1.1;
+  const hh = (bot - top) / 2 + S.size * .32, n = 36;
   c.fillStyle = S.bandCol || S.outline;
   c.filter = `blur(${Math.round(S.size * .3)}px)`;
   // a wide pale haze, then the denser core; a squarish superellipse whose edge wobbles a little per line
@@ -171,7 +186,7 @@ function drawSubtitleBand(c) {
     c.beginPath();
     for (let i = 0; i < n; i++) {
       const a = i / n * TAU, ca = Math.cos(a), sa = Math.sin(a), wob = 1 + (hash(id * 17.3 + i * 1.7) - .5) * .06;
-      const x = W / 2 + Math.sign(ca) * Math.pow(Math.abs(ca), .35) * (hw + pad) * wob, y = S.y + Math.sign(sa) * Math.pow(Math.abs(sa), .35) * (hh + pad * .45) * wob;
+      const x = W / 2 + Math.sign(ca) * Math.pow(Math.abs(ca), .35) * (hw + pad) * wob, y = cy + Math.sign(sa) * Math.pow(Math.abs(sa), .35) * (hh + pad * .45) * wob;
       i ? c.lineTo(x, y) : c.moveTo(x, y);
     }
     c.closePath(); c.fill();
@@ -189,14 +204,16 @@ function creditsAt(t) {
 function drawSubtitleText(c) {
   if (REVIEW && !window.REVIEW_OFF) drawReviewMark(c, T);
   if (!SUBTITLE) return;
-  const { txt, k } = SUBTITLE, S = CONFIG.subtitle;
+  const { lines, k } = SUBTITLE, S = CONFIG.subtitle;
   c.save(); c.globalAlpha = clamp(k * 1.15);
-  c.font = `${S.weight || ''} ${S.size}px ${CONFIG.fonts.zh}`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.lineJoin = 'round';
-  c.shadowColor = S.shadow || 'rgba(0,0,0,.5)'; c.shadowBlur = S.size * .3; c.shadowOffsetY = S.size * .06;
-  c.lineWidth = S.size * .2; c.strokeStyle = S.outline; c.strokeText(txt, 960, S.y);
-  c.shadowColor = 'transparent';
-  c.fillStyle = S.color; c.fillText(txt, 960, S.y);
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  for (const { txt, size, y, font } of lines) {
+    c.font = font;
+    c.shadowColor = S.shadow || 'rgba(0,0,0,.5)'; c.shadowBlur = size * .3; c.shadowOffsetY = size * .06;
+    c.lineWidth = size * .2; c.strokeStyle = S.outline; c.strokeText(txt, 960, y);
+    c.shadowColor = 'transparent';
+    c.fillStyle = S.color; c.fillText(txt, 960, y);
+  }
   c.restore();
 }
 // Small corner tag while a lyric is up: "L2 · 待复听(高)". Never part of the final picture unless --review.

@@ -9,6 +9,7 @@
 //   node render.mjs --encode [--range=22.72:35.49] [--out=out/x.mp4]              逐帧 + 原曲 → MP4（音频按区间对齐）
 //   node render.mjs --sample [--workers=2]                                        样片：逐帧 + 编码 + 检查拼图
 //   node render.mjs --verify=24,30.2,33                                           无状态检查：乱序重渲同一帧须逐像素一致
+//   node render.mjs --cover=43,34 [--out=out/cover]                               封面静帧（src/cover.js 的 COVERS）：PNG + JPG
 // Common flags: --chrome=<path>  --review (burn lyric review marks into stills/frames)  --fps=24
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, statSync, renameSync, readdirSync } from 'node:fs';
@@ -72,11 +73,11 @@ async function ensureBrowser() {                                   // relaunch C
   if (!relaunching) relaunching = (async () => { console.log('Chrome went away — relaunching'); try { await browser.close(); } catch {} await launch(); })().finally(() => { relaunching = null; });
   await relaunching;
 }
-async function openPage(tag = '') {
+async function openPage(tag = '', extra = '') {
   const page = await browser.newPage();
   page.on('console', m => { if (['error', 'warn', 'warning'].includes(m.type())) console.log(`[page${tag}]`, m.text()); });
   page.on('pageerror', e => console.log(`[page error${tag}]`, e.message));
-  const q = '?render' + (args.review || args.sheet ? '&review' : '');
+  const q = '?render' + (args.review || args.sheet ? '&review' : '') + extra;
   await page.goto(pathToFileURL(resolve('studio.html')).href + q, { waitUntil: 'load', timeout: 0 });
   await (kind === 'puppeteer' ? page.waitForFunction('window.ready === true', { timeout: 60000 }) : page.waitForFunction('window.ready === true', null, { timeout: 60000 }));
   if (args.loop) await page.evaluate(name => { window.LOOP = LOOPS[name]; }, args.loop);
@@ -136,6 +137,15 @@ else if (args.stills) {
   for (const s of times(args.stills)) {
     const t0 = Date.now(), buf = await frameOf(page, s, 'image/png'), f = `${out}/t${s.toFixed(2).replace('.', '_')}.png`;
     writeFileSync(f, buf); console.log(`${f}  ${Date.now() - t0} ms`);
+  }
+} else if (args.cover) {
+  // Covers: each key opens a page with ?cover=<key> (src/cover.js resizes the canvas and paints that cover).
+  const out = args.out || 'out/cover'; mkdirSync(out, { recursive: true });
+  for (const key of String(args.cover).split(',')) {
+    const page = await openPage('#' + key, '&cover=' + key), t0 = Date.now();
+    const png = await frameOf(page, 0, 'image/png'), jpg = await frameOf(page, 0, 'image/jpeg', .95);
+    writeFileSync(`${out}/cover_${key}.png`, png); writeFileSync(`${out}/cover_${key}.jpg`, jpg);
+    console.log(`${out}/cover_${key}.png / .jpg  ${Date.now() - t0} ms`); await page.close();
   }
 } else if (args.verify) {
   // Every frame must be a pure function of t: render the list forwards in one page and backwards in a fresh page

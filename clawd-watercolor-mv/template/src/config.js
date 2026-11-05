@@ -16,10 +16,14 @@ const CONFIG = {
   // 字体：macOS 系统楷体粗体最清楚；需要固定字形时跑 tools/build_font.py 生成子集并把 face 指过去
   fonts: {
     zh: '"Kaiti SC", "STKaiti", "Songti SC", "PingFang SC", "Noto Serif CJK SC", serif',
+    ja: '"YuKyokasho Yoko", "YuKyokasho", "Klee", "Hiragino Mincho ProN", "YuMincho", serif',   // 日文：教科书体，和楷体同一路手写感（楷体没有假名，会混字体）
     face: null,                          // 例：{ family: 'Film Serif', url: 'assets/fonts/FilmSerif.woff' }，zh 前面加 '"Film Serif", '
   },
   subtitle: {                            // 整句字幕（不做逐字卡拉OK）
-    size: 54, weight: 'bold', y: 1010,   // 字号、字重与中心 y；关键表演保持在 y 960 以上
+    size: 54, weight: 'bold', y: 1010,   // 字号、字重与第一行中心 y；关键表演保持在 y 960 以上
+    // 双语：lines 从上到下列出各行。key 'zh' = 歌词 JSON 的 text_zh（译文），'orig' = text（原文）；font = CONFIG.fonts 的键。
+    // 例（《丸之內虐待狂》中文在上、日文在下且小）：lines: [{ key: 'zh', size: 54, font: 'zh' }, { key: 'orig', size: 34, font: 'ja' }], gap: 14, y: 976
+    lines: null, gap: 14,                // null = 只有原文一行
     fadeIn: .16, fadeOut: .2,            // 入/出淡变（秒）
     color: '#FFF9EE', outline: '#1E2238', shadow: 'rgba(10,12,30,.55)',
     band: 150,                           // 字幕底带不透明度（0–255，0 = 不要底带）。底带在合成层画（柔边、按句固定形状），不随线条抖动闪烁

@@ -48,6 +48,7 @@
   <audio id="aud" preload="auto"></audio>
 </main>
 <script src="src/config.js"></script>
+<script src="src/cover.js"></script>   <!-- 封面：?cover=<key> 时改画布尺寸，必须在 core.js 之前 -->
 <script>if (!location.search.includes('render')) document.getElementById('aud').src = CONFIG.audio; document.title = `《${CONFIG.title}》studio`;</script>
 <script src="src/core.js"></script>
 <script src="src/clawd.js"></script>
@@ -78,7 +79,7 @@ window.devUI = () => {
   const info = t => {
     const sh = shotAt(t), L = lyricAt(t);
     $('info').innerHTML = `<b>${sh.ch} · ${sh.chName}</b>　${sh.a.toFixed(2)}–${sh.b.toFixed(2)} s　${sh.lyric}<br>${sh.shot}` +
-      (L ? `<br>字幕 L${L[3]}「${L[2]}」 ${L[0].toFixed(2)}–${L[1].toFixed(2)} s <span class="${L[4] === 'high' ? 'hi' : ''}">${L[5] ? '待复听' + (L[4] === 'high' ? '（高优先级）' : '') : ''}</span>` : '');
+      (L ? `<br>字幕 L${L[3]}「${L[2]}」${L[6] ? `「${L[6]}」` : ''} ${L[0].toFixed(2)}–${L[1].toFixed(2)} s <span class="${L[4] === 'high' ? 'hi' : ''}">${L[5] ? '待复听' + (L[4] === 'high' ? '（高优先级）' : '') : ''}</span>` : '');
   };
   const paintAt = async t => { const t0 = performance.now(); await window.renderAt(t); lab.textContent = `${t.toFixed(2)} s · ${Math.round(performance.now() - t0)} ms/frame`; info(t); };
   const go = async () => { if (busy) return; busy = true; while (want != null) { const t = want; want = null; await paintAt(t); } busy = false; };

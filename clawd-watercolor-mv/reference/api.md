@@ -27,6 +27,7 @@
 - `shotAt(t)`、`lyricAt(t)`；`window.LOOP = t => …` 让 studio 只画一个循环测试函数。
 - `TRANSITIONS`：`{ t, d, type }`，type = `whip {dir, cols, haze}` / `bloom {col}` / `smoke` / `paint {cols}` / `paper {blank}` / `clock {col}` / `splash {col}`。
 - 字幕：`CONFIG.subtitle`（size weight y fadeIn fadeOut color outline shadow band bandCol）；底带在合成层画（`drawSubtitleBand`），不进 p5.brush。
+- 双语字幕：`CONFIG.subtitle.lines = [{ key, size, font, weight }]` 从上到下，`key` 'zh' = JSON 的 `text_zh`（LY[6]），'orig' = `text`（LY[2]）；`y` 是第一行中心，后面的行按 `gap` 往下排，共用一块底带。日文行用 `fonts.ja`（教科书体）。
 - 署名：`CONFIG.credits`（at hold size x y align skipFirst），长行在 `/` 处折行。
 - 复听角标：studio 与检查拼图里显示，成片不显示（`render.mjs --review` 才烧进去）。
 
@@ -53,7 +54,7 @@
 
 ## kit.js（通用场景库）
 
-`viewRect vis clipRect bg VIEW_OVERRIDE`（剔除与裁剪）· `nest(x,y,k,fn,view)`（嵌套场景，不裁剪）· `glowDot softGlow lightString` · `moon stars roofRow bareTree` · `snowLine snowfall` · `ribbonPts curlPath angLerp sagPath cord` · `hand clawdArmTip armAngleTo armTo` · `speechBubble lensVignette swirlVortex` · `splitHalf paperDivider`。参数见 kit.js 每个函数上方的注释。
+`viewRect vis clipRect bg VIEW_OVERRIDE`（剔除与裁剪）· `nest(x,y,k,fn,view)`（嵌套场景，不裁剪）· `glowDot softGlow lightString` · `moon stars roofRow bareTree` · `snowLine snowfall` · `ribbonPts curlPath angLerp sagPath cord` · `hand clawdArmTip armAngleTo armTo` · `speechBubble lensVignette swirlVortex` · `splitHalf paperDivider` · `warmGlow spotBeam confettiFall` · `integ`（变速旋转仍是 t 的纯函数）· `nestView`（推进嵌套场景，进到开口里后直接画内层）· `humanHand humanHandTip`（人手道具，指尖精确落点）· `airGuitar`（Clawd 把雨伞 / 吉他横抱在身前弹：返回两只手臂的角度和道具线 H→T；琴身画法见《丸之內虐待狂》`guitarAlong`）。参数见 kit.js 每个函数上方的注释。
 
 ## person.js（可选：人物主角）
 
@@ -68,16 +69,23 @@
 
 用例见 HighwayToHell / WhiskeyJar / YuJian 的 cast.js。
 
+## cover.js（封面）
+
+- `COVERS = { key: { w, h, draw } }`：逻辑像素的画布，渲染时 ×`COVER_RES`（默认 2）。URL 带 `?cover=<key>` 时生效，不影响全片渲染和 dryrun。
+- `coverCam(cx, cy, z)`：按逻辑像素取景，世界点 (cx, cy) 放在中央。`coverScreen(w, h)`：之后的坐标就是封面的逻辑像素。都用 `camEnd()` 结束。
+- 标题用 `letter()` 在 coverScreen 里画（逐字摆放、描边 `stroke`、`ink: false`），字号随相机自动 ×2。
+- 渲染：`node render.mjs --cover=43,34 [--out=out/cover]` → PNG + JPG（q .95）。
+
 ## 工具（template/tools，均在工程根目录运行）
 
 | 命令 | 作用 |
 |---|---|
-| `node tools/beat.mjs` | BPM + 相位（0.01 s）+ 分段相位；只要 ffmpeg |
+| `node tools/beat.mjs [--bpm=100]` | BPM + 相位（0.01 s）+ 分段相位；只要 ffmpeg。`--bpm` 跳过搜索、按给定速度细扫（比如快网格的一半），并报反拍相位的强度 |
 | `python3 tools/lrc_to_json.py --lrc=…` | 只有 LRC 时生成歌词 JSON（出点估计，全部待复听） |
 | `python3 tools/build_data.py [--json=…]` | JSON + STORYBOARD.md → lyrics.js / shotlist.js，并检查镜头无缝 |
 | `node tools/dryrun.mjs --step=0.25` | 不开浏览器跑全片，报错 + 每帧图形数 |
 | `node tools/profile.mjs --t=72,74 --stub="fnA;fnB,fnC"` | 把函数换成空函数比耗时，找慢的东西 |
-| `node render.mjs --sheet/--stills/--clip/--frames/--encode/--sample/--verify` | 见 render.mjs 文件头 |
+| `node render.mjs --sheet/--stills/--clip/--frames/--encode/--sample/--verify/--cover` | 见 render.mjs 文件头 |
 | `node tools/finish.mjs` | 成片核对 + 总览 + 720p + 拷桌面 |
 | `python3 tools/sync_check.py` | 波形对照图（要 numpy + Pillow，这台 Mac 默认没有） |
 | `node tools/render_watch.mjs` | 渲染队列（只在 Cowork VM 里需要） |

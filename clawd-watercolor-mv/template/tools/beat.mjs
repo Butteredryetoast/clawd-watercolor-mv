@@ -1,5 +1,6 @@
 // beat.mjs: estimate tempo and beat phase from the song (no Python / numpy needed; only ffmpeg).
-//   node tools/beat.mjs [--audio=assets/song.mp3] [--min=60] [--max=180] [--segments=4]
+//   node tools/beat.mjs [--audio=assets/song.mp3] [--min=60] [--max=180] [--segments=4] [--bpm=100]
+//   --bpm: skip the search and fine-scan around this tempo (e.g. half of a fast grid); also prints the off-beat phase.
 // Method: spectral-flux onset strength (10 ms hop) → autocorrelation over 60–180 BPM → for the best candidates a
 // fine scan of BPM (0.01) × phase (0.01 s) maximising the onset sum at the beat grid → the same phase scan per segment,
 // to spot tempo drift. Half / double tempo are both reported: choose by ear and by the storyboard. NOT human verified.
@@ -48,7 +49,8 @@ for (let bpm = bmin; bpm <= bmax; bpm += .5) {
   const lag = 60 / bpm * FPS; let s = 0; for (let f = 0; f + lag + 1 < nF; f += 2) s += o[f] * at((f + lag) / FPS);
   cand.push([bpm, s]);
 }
-const peaks = cand.filter(([, s], i) => i > 0 && i < cand.length - 1 && s >= cand[i - 1][1] && s >= cand[i + 1][1]).sort((a, b) => b[1] - a[1]).slice(0, 4);
+const peaks = args.bpm ? [[+args.bpm, 0]] : cand.filter(([, s], i) => i > 0 && i < cand.length - 1 && s >= cand[i - 1][1] && s >= cand[i + 1][1]).sort((a, b) => b[1] - a[1]).slice(0, 4);
+if (!peaks.length) peaks.push(cand.slice().sort((a, b) => b[1] - a[1])[0]);   // narrow --min/--max: no interior peak
 
 // ---- fine: BPM 0.01 × phase 0.01 s, score = mean onset strength on the grid ----
 function gridScore(bpm, ph, t0 = 0, t1 = x.length / SR) { const P = 60 / bpm; let s = 0, n = 0; for (let t = ph + Math.ceil((t0 - ph) / P) * P; t < t1; t += P) { s += at(t); n++; } return n ? s / n : 0; }
@@ -61,4 +63,5 @@ for (const [bpm, ph, s] of fine) console.log(`  ${bpm.toFixed(2).padStart(7)}  $
 const [B, PH] = fine[0], dur = x.length / SR;
 console.log(`\nper-segment phase at ${B.toFixed(2)} BPM (same value everywhere = steady tempo; drifting = use CONFIG.beat.map):`);
 for (let i = 0; i < nseg; i++) { const t0 = dur * i / nseg, t1 = dur * (i + 1) / nseg, [ph, s] = bestPhase(B, t0, t1); console.log(`  ${t0.toFixed(0).padStart(4)}–${t1.toFixed(0).padEnd(4)} s  phase ${ph.toFixed(2)}  strength ${(s / meanO).toFixed(2)}`); }
+{ const P = 60 / B, alt = (PH + P / 2) % P; console.log(`off-beat phase ${alt.toFixed(2)}: strength ${(gridScore(B, alt) / meanO).toFixed(2)} vs ${(gridScore(B, PH) / meanO).toFixed(2)} (the on-beat should be clearly stronger; if close, decide by ear)`); }
 console.log(`\nCONFIG.beat = { bpm: ${B.toFixed(2)}, offset: ${PH.toFixed(2)}, verified: false }   // beat = ${(60 / B).toFixed(4)} s, bar(4) = ${(240 / B).toFixed(3)} s`);

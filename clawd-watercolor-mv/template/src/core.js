@@ -218,7 +218,7 @@ async function setup() {
     const ff = new FontFace(CONFIG.fonts.face.family, `url(${CONFIG.fonts.face.url})`);
     try { document.fonts.add(await ff.load()); } catch (e) { console.warn('bundled font failed, using system CJK font', e.message); }
   }
-  await document.fonts.load(`50px ${CONFIG.fonts.zh}`, CONFIG.title);
+  for (const [k, f] of Object.entries(CONFIG.fonts)) if (typeof f === 'string') await document.fonts.load(`bold 50px ${f}`, k === 'zh' ? CONFIG.title : 'あア字');
   window.ready = true;
   if (!location.search.includes('render') && window.devUI) window.devUI();
 }

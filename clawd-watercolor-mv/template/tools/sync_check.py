@@ -23,7 +23,7 @@ sr = 8000
 raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', str(a), '-t', str(b - a), '-i', str(ROOT / audio), '-ac', '1', '-ar', str(sr), '-f', 'f32le', '-'],
                      capture_output=True, check=True).stdout
 x = np.frombuffer(raw, np.float32)
-LY = [json.loads('[' + m.group(1) + ']') for m in re.finditer(r'^\s*\[([\d.]+, [\d.]+, ".*?", \d+, "\w+", \w+)\],', (ROOT / 'src/lyrics.js').read_text('utf-8'), re.M)]
+LY = [json.loads('[' + m.group(1) + ']') for m in re.finditer(r'^\s*\[([\d.]+, [\d.]+, ".*?", \d+, "\w+", \w+)(?:, .*)?\],', (ROOT / 'src/lyrics.js').read_text('utf-8'), re.M)]
 SH = [json.loads(l.strip().rstrip(',')) for l in (ROOT / 'src/shotlist.js').read_text('utf-8').splitlines() if l.strip().startswith('{')]
 marks = [(float(m.split(':')[0]), m.split(':', 1)[1]) for m in args.get('marks', '').split(',') if ':' in m]
 

@@ -12,6 +12,8 @@
 | 春风吹（ChunFengChui） | Clawd | 200.59 s / 67.45 | **p5.brush 越界补丁**（已并入模板）、`SCALE_K` 嵌套缩放、长卷 `scroll1/2`、山坡固定舞台四套颜色、土层剖面、大升镜 `greenPanorama`、开场和尾声同构图 `windowView` |
 | 遇见（YuJian） | 人物 | 210.57 s / 92 | **清爽版画风**（`boil: 0` + `style.inkCol`，已并入模板）、车站固定舞台、公交车内和车窗主观镜头、翻牌叫号屏、季节调色 `SEASON`、俯拍人海 |
 | 冬天一个游（DongTian） | Clawd | 253.69 s / 79.0 | 楼房剖面 `aptSet` / 居酒屋剖面 `izakayaSet`、窗户推镜无缝切进全景（`inPano` → kit `nest`）、贯穿各场景的红毛线（`yarnPath` → kit `sagPath`）、雪景球旋涡转场（→ kit `swirlVortex`）、双城分屏（→ kit `splitHalf`）、雷门固定舞台三套调色、东京河岸长条场景、`snowLine` / `FILL_MIN` / `profile.mjs`。字幕底带闪烁的教训也来自这部 |
+| 丸之內虐待狂（Marunouchi） | Clawd | 235.74 s / 100 | **中日双语字幕**（`subtitle.lines`）；丸之内线红电车 `subwayTrain`（侧面）/ `riverSet` 里的小电车 / 车厢内景 `carInterior`（座位、摆动吊环、门开向站台）/ 俯视 `carPlan`；神田川峡谷首尾同构图 + 灯逐拍熄灭；街道连地下剖面 `streetSection`（人行道 → 泥土 → 地铁隧道 → 嵌套的 Live House，`nestView` 式推进）；Live House 固定舞台 `liveStage` 四套调色 + 音箱逐级 `ampStack` + 布景换场 `backdrop`（寺院 / 卧室 / 披萨店）+ 背影观众 `crowd`/`fanLite`；**Clawd 弹吉他** `airGuitar` + `guitarAlong`（雨伞 / 纸板 / 红色实心琴 `rickGuitar` / 橙色空心琴）；X 光肺 `xray`；银座路口 `ginzaSet`（钟楼、出租车 `taxi`、收据纸带 `paperRibbon`）；后乐园 `korakuenSet`（无轴摩天轮、Catmull-Rom 过山车轨道 `coasterAt`）；月台 `platformSet`（电车停在月台后、开门）；**封面** `cover.js`（4:3 / 3:4，2× 分辨率：峡谷远景 + 桥栏前景 `coverParapet` + 弹雨伞的她 + 标题下的红底白波纹条） |
+| 电动少女（DianDongShaoNv） | 人物 | 310.43 s / 122.01 | **八音盒小剧场**：玩具剧院 `toyTheater` 套嵌固定舞台、推进开口无缝切内层（`boxView` → kit `nestView`）；固定舞台三套调色 `STAGE_PAL` + 反打观众席 `auditoriumSet`（几百个瓷娃娃 `porcelain`）；人物原地旋转 `o.spin`（|cos| 压扁 + 自动背面 + 纱裙不压扁）；电量表 / 胸灯做全片计量表；正交投影地球 `earthSpace`（晨昏线、夜面灯火、首尾同构图）；大手 `giantHand`（→ kit `humanHand`）；化妆镜灯泡逐拍亮灭、针滚筒跑步机、拔插头的全黑和星光竖井 |
 
 ## 反复用到的结构
 

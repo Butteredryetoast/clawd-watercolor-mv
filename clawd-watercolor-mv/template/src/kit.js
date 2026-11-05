@@ -12,6 +12,11 @@
 //   hand / clawdArmTip / armAngleTo / armTo    put a Clawd hand exactly on a prop, or aim it
 //   speechBubble / lensVignette / swirlVortex  a bubble, looking through glass, a vortex that swallows the frame
 //   splitHalf / paperDivider            split screen (two scenes side by side, each in local 960×1080)
+//   warmGlow / spotBeam / confettiFall   a wide warm light pool, a swinging spotlight, falling confetti (《电动少女》)
+//   integ(a, t, rate)                   ∫ rate: a variable-speed spin that is still a pure function of t
+//   nestView(cx, cy, z, R, outer, inner) push a camera into a nested set; paints the inner set directly once inside
+//   humanHand / humanHandTip            a giant human hand with a suit sleeve; put its fingertip exactly on a prop
+//   airGuitar(x, y, u, o, strum)        a Clawd holding a stick-like prop as a guitar: arm angles + the prop line H→T (《丸之內虐待狂》)
 const KIT_NIGHT = { snow: '#E4E8F1', snowDk: '#A9B3CC', glow: '#FFE3A0', win: '#F6D78E' };
 
 // ---------- camera culling ----------
@@ -241,4 +246,83 @@ function paperDivider(t, k = 1, o = {}) {
   for (let i = 12; i >= 0; i--) pts.push([960 + w + (hash(i * 5) - .5) * 6, -40 + i * (H + 80) / 12]);
   paint(pts, { wash: PAL.paper, ink: '#B8A88E', sw: .7 });
   if (o.cord) { const y = []; for (let i = 0; i <= 10; i++) y.push([960 + Math.sin(t * 1.5 + i) * 3 * k, -40 + i * (H + 80) / 10]); cord(y, 2.2 * k, o.col, o.under); }
+}
+
+// ---------- from 《电动少女》 ----------
+// A wide, warm pool of light: seven faint layers, so the rim does not band on a dark wall (softGlow has four).
+function warmGlow(x, y, rx, ry, col, k = 1) { if (k < .02) return; for (let i = 0; i < 7; i++) { const f = 1 - i * .13; paint(ellPts(x, y, rx * f, ry * f, 28), { wash: col, washOp: Math.min(255, 11 * k), ink: null }); } }
+// ∫ rate(s) ds from a to t (midpoint rule). A spin whose speed follows a keyframed knob stays a pure function of t.
+function integ(a, t, rate, n = 40) { if (t <= a) return 0; const h = (t - a) / n; let s = 0; for (let i = 0; i < n; i++) s += rate(a + (i + .5) * h); return s * h; }
+// A spotlight beam from (x0, y0) at angle ang (0 = straight down): a translucent cone and a soft pool at its end.
+function spotBeam(x0, y0, ang, len, w, col, k = 1) {
+  if (k < .02) return;
+  const dx = Math.sin(ang), dy = Math.cos(ang), ex = x0 + dx * len, ey = y0 + dy * len, nx = dy, ny = -dx;
+  paint([[x0 - nx * 20, y0 - ny * 20], [x0 + nx * 20, y0 + ny * 20], [ex + nx * w, ey + ny * w], [ex - nx * w, ey - ny * w]], { wash: col, washOp: 46 * k, ink: null });
+  softGlow(ex, ey, w * 1.1, w * .35, col, .8 * k);
+}
+// Confetti drifting down over the frame (frame coords); k 0..1 density.
+function confettiFall(t, k, n = 90, cols = ['#E8FF7A', '#FF6AD0', '#7AF0FF', '#FFD23A', '#B07AFF']) {
+  if (k < .01) return;
+  for (let i = 0; i < n; i++) {
+    const x = frac(hash(i * 3.3) + Math.sin(t * .7 + i) * .02) * W, y = frac(hash(i * 5.9) + t * (.12 + .1 * hash(i))) * (H + 100) - 50, a = t * 3 + i;
+    paint([[x + Math.cos(a) * 9, y + Math.sin(a) * 4], [x - Math.sin(a) * 6, y + Math.cos(a) * 9], [x - Math.cos(a) * 9, y - Math.sin(a) * 4]], { wash: cols[i % cols.length], washOp: 230 * k, ink: null });
+  }
+}
+// Camera on an outer set that nests an inner full-frame set in the opening R = [ox, oy, ow, oh] (scale k = ow / W).
+// While the view is not inside the opening: camBegin on the outer set; outerFn(paintInner) must nest paintInner at R.
+// Once the view lies wholly inside the opening, the inner set is painted directly in its own coords at zoom z·k —
+// the same picture, no nested overflow, and much cheaper. innerFn(lite) gets lite = true when it is painted tiny.
+function nestView(cx, cy, z, R, outerFn, innerFn) {
+  const [ox, oy, ow, oh] = R, k = ow / W, hw = W / 2 / z, hh = H / 2 / z;
+  if (cx - hw >= ox && cx + hw <= ox + ow && cy - hh >= oy && cy + hh <= oy + oh) { camBegin((cx - ox) / k, (cy - oy) / k, z * k); innerFn(false); camEnd(); return; }
+  camBegin(cx, cy, z); outerFn(() => innerFn(z * k < .3)); camEnd();
+}
+// A human hand (a giant next to dolls / Clawds): palm, four two-joint fingers, thumb, a suit sleeve with a cufflink.
+// (x, y) = wrist, s = palm width px, o.ang = finger direction, o.curl 0..1, o.pinch 0..1 (thumb to index), o.mirror = the
+// other hand, o.noSleeve, o.sleeve length (×s), o.cols { skin, skinDk, sleeve, sleeveDk, cuff, link }.
+function humanHand(x, y, s, o = {}) {
+  const C = { skin: '#E2BEA4', skinDk: '#C09478', sleeve: '#6E7078', sleeveDk: '#4E5058', cuff: '#ECE6DA', link: '#D4A84A', ...o.cols };
+  const curl = o.curl || 0, pinch = o.pinch || 0, sw = clamp(s / 40, .6, 3);
+  push(); translate(x, y); rotate(o.ang || 0); if (o.mirror) scale(1, -1);
+  const P = (pts, op) => paint(pts.map(q => [q[0] * s, q[1] * s]), { ink: PAL.ink, sw, ...op });
+  if (!o.noSleeve) {
+    const L = o.sleeve ?? 4;
+    P([[-L, -.62], [-.32, -.5], [-.32, .5], [-L, .62]], { wash: C.sleeve, fill: C.sleeveDk, fillOp: 60, tex: .5 });
+    P([[-.42, -.52], [-.12, -.46], [-.12, .46], [-.42, .52]], { wash: C.cuff });
+    P(ellPts(-.27, .2, .08, .08, 10), { wash: C.link, fill: '#9A7428', fillOp: 70 });
+  }
+  P([[-.16, -.4], [.82, -.46], [.9, .4], [-.16, .4]], { wash: C.skin, fill: C.skinDk, fillOp: 40, tex: .4, curv: .25 });
+  [[-.34, .95], [-.12, 1.05], [.1, 1.0], [.31, .78]].forEach(([fy, len], i) => {
+    const c = clamp(curl + (i === 0 ? pinch * .5 : 0)), a1 = c * 1.1, a2 = a1 + c * 1.3;
+    const p0 = [.82, fy], p1 = [p0[0] + Math.cos(a1) * len * .5, p0[1] + Math.sin(a1) * len * .5], p2 = [p1[0] + Math.cos(a2) * len * .45, p1[1] + Math.sin(a2) * len * .45];
+    P(ribbonPts([p0, p1, p2], .21, .18), { wash: C.skin, fill: C.skinDk, fillOp: 40, curv: .3 });
+    P(ellPts(p2[0] - Math.cos(a2) * .05, p2[1] - Math.sin(a2) * .05, .06, .05, 8), { wash: '#F2D6C4', ink: null });
+  });
+  const ta = lerp(-.95, -.15, pinch), t0 = [.15, -.38], t1 = [t0[0] + Math.cos(ta) * .45, t0[1] + Math.sin(ta) * .45], ta2 = ta + .4 + pinch * .5, t2 = [t1[0] + Math.cos(ta2) * .38, t1[1] + Math.sin(ta2) * .38];
+  P(ribbonPts([t0, t1, t2], .26, .2), { wash: C.skin, fill: C.skinDk, fillOp: 40, curv: .3 });
+  pop();
+}
+// World position of the index fingertip of humanHand(x, y, s, o). To put a fingertip ON a knob / plug: compute
+// tip = humanHandTip(0, 0, s, o) and paint the hand at (target − tip) — never guess the wrist.
+function humanHandTip(x, y, s, o = {}) {
+  const c = clamp((o.curl || 0) + (o.pinch || 0) * .5), a1 = c * 1.1, a2 = a1 + c * 1.3, len = .95;
+  let lx = .82 + Math.cos(a1) * len * .5 + Math.cos(a2) * len * .45, ly = -.34 + Math.sin(a1) * len * .5 + Math.sin(a2) * len * .45;
+  if (o.mirror) ly = -ly;
+  const a = o.ang || 0;
+  return [x + (lx * Math.cos(a) - ly * Math.sin(a)) * s, y + (lx * Math.sin(a) + ly * Math.cos(a)) * s];
+}
+
+// ---------- from 《丸之內虐待狂》 ----------
+// A Clawd playing a stick-like prop (umbrella, broom, guitar) as a guitar: handle end H just outside the body on the strumming side (screen left, so the arm
+// stays visible: arms are painted behind the body), shaft crossing below the eyes and mouth, tip up to screen right.
+// Returns the arm angles that put both hands on the shaft, plus H and T for umbrella(). strum 0..1 moves the right hand.
+function airGuitar(x, y, u, o = {}, strum = 0) {
+  const dy = (o.dy || 0) * u, H = [x - 5.4 * u, y + dy - 2.2 * u], F = [x + 6.4 * u, y + dy - 5.6 * u];
+  const d = Math.hypot(F[0] - H[0], F[1] - H[1]), D = [(F[0] - H[0]) / d, (F[1] - H[1]) / d], T = [H[0] + D[0] * d * 1.12, H[1] + D[1] * d * 1.12];
+  const onLine = (px, py) => {                       // the point on the shaft 2.2u from the shoulder (else the nearest one)
+    const pr = (px - H[0]) * D[0] + (py - H[1]) * D[1], cx = H[0] + D[0] * pr, cy = H[1] + D[1] * pr, q = Math.hypot(px - cx, py - cy);
+    const s = q < 2.2 * u ? pr + Math.sqrt((2.2 * u) ** 2 - q * q) : pr; return [H[0] + D[0] * s, H[1] + D[1] * s];
+  };
+  const fr = onLine(x + 4.9 * u, y + dy - 4.5 * u), st = [H[0] + .3 * u, H[1] + (strum - .5) * .9 * u];
+  return { H, T, aL: armAngleTo(x, y, u, st[0], st[1], -1, o), aR: armAngleTo(x, y, u, fr[0], fr[1], 1, o) };
 }

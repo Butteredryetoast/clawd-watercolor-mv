@@ -12,7 +12,7 @@ description: "Use when making or fixing a hand-painted watercolor (p5.brush) ani
 - `template/`：一个能直接跑的工程，含引擎、渲染器、打过补丁的 p5.brush、通用场景库 kit.js、可选的人物骨架 person.js，以及全部工具。
 - `reference/api.md`：函数速查。
 - `reference/pitfalls.md`：踩坑清单，写代码前先扫一遍。
-- `reference/past-films.md`：八部旧片里有哪些场景和手法可以借。
+- `reference/past-films.md`：十部旧片里有哪些场景和手法可以借。
 - `scripts/new_project.sh`：建新工程。
 
 **不要再去复制某部旧片的工程当模板**。旧片只用来借具体的场景函数。
@@ -122,6 +122,13 @@ bash SK/scripts/new_project.sh <work>/<Name> <work>/DongTian   # 第二个参数
    - 成片信息。
 5. 如实说明哪些只看了拼图、没有完整带声播放。
 6. 不删老大的文件。帧文件删不删让老大决定；旧帧只用 `mv -n` 改名。
+
+## 8. 封面（老大要时）
+- 写 `src/cover.js` 的 `COVERS`：每个比例一项 `{ w, h, draw }`，按逻辑像素排版，渲染时 ×2（4:3 = 2880×2160，3:4 = 2160×2880）。
+- `draw` 里先 `coverCam(cx, cy, z)` 取本片的场景，再 `coverScreen(w, h)` 画前景角色、标题。标题的行序和字体照老大这部片的字幕要求。
+- `node render.mjs --cover=43,34` → `out/cover/cover_43.png/.jpg`。用 Read 看整图，再裁一块原尺寸看细节。
+- 4:3 封面的右下角会被平台的时长角标挡住，主角别放那里。
+- 拷到桌面同一个文件夹（`cp -n`），SendUserFile 发 JPG。
 
 ## 常见错误（全表见 reference/pitfalls.md）
 
